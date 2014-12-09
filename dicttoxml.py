@@ -2,7 +2,8 @@
 # coding: utf-8
 
 """
-Converts a native Python dictionary into an XML string. Supports int, float, str, unicode, list, dict and arbitrary nesting.
+Converts a native Python dictionary into an XML string.
+Supports int, float, str, unicode, list, dict and arbitrary nesting.
 """
 
 from __future__ import unicode_literals
@@ -12,8 +13,6 @@ version = __version__
 
 from random import randint
 import collections
-import logging
-import sys
 from xml.dom.minidom import parseString
 
 # python 3 doesn't have a unicode type
@@ -28,33 +27,26 @@ try:
 except:
     long = int
 
-def set_debug(debug=True, filename='dicttoxml.log'):
-    if debug:
-        import datetime
-        print('Debug mode is on. Events are logged at: %s' % (filename))
-        logging.basicConfig(filename=filename, level=logging.INFO)
-        logging.info('\nLogging session starts: %s' % (str(datetime.datetime.today())))
-    else:
-        logging.basicConfig(level=logging.WARNING)
-        print('Debug mode is off.')
+ids = []  # initialize list of unique ids
 
-ids = [] # initialize list of unique ids
 
 def make_id(element, start=100000, end=999999):
     """Returns a random integer"""
     return '%s_%s' % (element, randint(start, end))
 
+
 def get_unique_id(element):
     """Returns a unique id for a given element"""
     this_id = make_id(element)
     dup = True
-    while dup == True:
+    while dup:
         if this_id not in ids:
             dup = False
             ids.append(this_id)
         else:
             this_id = make_id(element)
     return ids[-1]
+
 
 def get_xml_type(val):
     """Returns the data type for the xml type attribute"""
@@ -66,9 +58,10 @@ def get_xml_type(val):
         return 'null'
     if isinstance(val, dict):
         return 'dict'
-    if type(val).__name__ in ('list', 'set', 'tuple') or isinstance(val, collections.Iterable):
+    if type(val).__name__ in ('list', 'set', 'tuple') or isinstance(val, collections.Iterable):  # nopep8
         return 'list'
     return type(val).__name__
+
 
 def xml_escape(s):
     if type(s) in (str, unicode):
@@ -79,24 +72,26 @@ def xml_escape(s):
         s = s.replace('>', '&gt;')
     return s
 
+
 def make_attrstring(attr):
     """Returns an attribute string in the form key="val" """
     attrstring = ' '.join(['%s="%s"' % (k, v) for k, v in attr.items()])
     return '%s%s' % (' ' if attrstring != '' else '', attrstring)
 
+
 def key_is_valid_xml(key):
     """Checks that a key is a valid XML name"""
-    logging.info('Inside key_is_valid_xml(). Testing "%s"' % (key))
-    test_xml = '<?xml version="1.0" encoding="UTF-8" ?><%s>foo</%s>' % (key, key)
-    try: 
+    test_xml = \
+        '<?xml version="1.0" encoding="UTF-8" ?><%s>foo</%s>' % (key, key)
+    try:
         parseString(test_xml)
         return True
-    except Exception: #minidom does not implement exceptions well
+    except Exception:  # minidom does not implement exceptions well
         return False
+
 
 def make_valid_xml_name(key, attr):
     """Tests an XML name and fixes it if invalid"""
-    logging.info('Inside make_valid_xml_name(). Testing key "%s" with attr "%s"' % (key, str(attr)))
     # pass through if key is already valid
     if key_is_valid_xml(key):
         return key, attr
@@ -111,45 +106,45 @@ def make_valid_xml_name(key, attr):
     key = 'key'
     return key, attr
 
+
 def convert(obj, ids, attr_type, parent='root'):
-    """Routes the elements of an object to the right function to convert them based on their data type"""
-    logging.info('Inside convert(). obj type is: "%s", obj="%s"' % (type(obj).__name__, obj))
+    """Routes the elements of an object to the right function to convert them
+    based on their data type"""
     if type(obj) in (int, float, long, str, unicode):
         return convert_kv('item', obj, attr_type)
     if hasattr(obj, 'isoformat'):
         return convert_kv('item', obj.isoformat(), attr_type)
     if type(obj) == bool:
         return convert_bool('item', obj, attr_type)
-    if obj == None:
+    if obj is None:
         return convert_none('item', '', attr_type)
     if isinstance(obj, dict):
         return convert_dict(obj, ids, parent, attr_type)
-    if type(obj) in (list, set, tuple) or isinstance(obj, collections.Iterable):
+    if type(obj) in (list, set, tuple) or isinstance(obj, collections.Iterable):  # nopep8
         return convert_list(obj, ids, parent, attr_type)
-    raise TypeError('Unsupported data type: %s (%s)' % (obj, type(obj).__name__))
-    
+    raise TypeError('Unsupported data type: %s (%s)' % (obj, type(obj).__name__))  # nopep8
+
+
 def convert_dict(obj, ids, parent, attr_type):
     """Converts a dict into an XML string."""
-    logging.info('Inside convert_dict(): obj type is: "%s", obj="%s"' % (type(obj).__name__, obj))
     output = []
     addline = output.append
     for key, val in obj.items():
-        logging.info('Looping inside convert_dict(): key="%s", val="%s", type(val)="%s"' % (key, val, type(val).__name__))
 
         this_id = get_unique_id(parent)
         attr = {} if ids == False else {'id': '%s' % (this_id) }
-        
+
         key, attr = make_valid_xml_name(key, attr)
-       
+
         if type(val) in (int, float, long, str, unicode):
             addline(convert_kv(key, val, attr_type, attr))
-            
+
         elif hasattr(val, 'isoformat'): # datetime
             addline(convert_kv(key, val.isoformat(), attr_type, attr))
-            
+
         elif type(val) == bool:
             addline(convert_bool(key, val, attr_type, attr))
-            
+
         elif isinstance(val, dict):
             if attr_type:
                 attr['type'] = get_xml_type(val)
@@ -170,14 +165,12 @@ def convert_dict(obj, ids, parent, attr_type):
 
 def convert_list(items, ids, parent, attr_type):
     """Converts a list into an XML string."""
-    logging.info('Inside convert_list()')
     output = []
     addline = output.append
     this_id = get_unique_id(parent)
     for i, item in enumerate(items):
-        logging.info('Looping inside convert_list(): item="%s", type="%s"' % (item, type(item).__name__))
         attr = {} if ids == False else {
-            'id': '%s_%s' % (this_id, i+1) 
+            'id': '%s_%s' % (this_id, i+1)
         }
         if type(item) in (int, float, long, str, unicode):
             addline(convert_kv('item', item, attr_type, attr))
@@ -203,10 +196,9 @@ def convert_list(items, ids, parent, attr_type):
 
 def convert_kv(key, val, attr_type, attr={}):
     """Converts an int, float or string into an XML element"""
-    logging.info('Inside convert_kv(): key="%s", val="%s", type(val) is: "%s"' % (key, val, type(val).__name__))
-    
+
     key, attr = make_valid_xml_name(key, attr)
-    
+
     if attr_type:
         attr['type'] = get_xml_type(val)
     attrstring = make_attrstring(attr)
@@ -216,10 +208,9 @@ def convert_kv(key, val, attr_type, attr={}):
 
 def convert_bool(key, val, attr_type, attr={}):
     """Converts a boolean into an XML element"""
-    logging.info('Inside convert_bool(): key="%s", val="%s", type(val) is: "%s"' % (key, val, type(val).__name__))
-    
+
     key, attr = make_valid_xml_name(key, attr)
-    
+
     if attr_type:
         attr['type'] = get_xml_type(val)
     attrstring = make_attrstring(attr)
@@ -227,10 +218,9 @@ def convert_bool(key, val, attr_type, attr={}):
 
 def convert_none(key, val, attr_type, attr={}):
     """Converts a null value into an XML element"""
-    logging.info('Inside convert_none(): key="%s"' % (key))
-    
+
     key, attr = make_valid_xml_name(key, attr)
-    
+
     if attr_type:
         attr['type'] = get_xml_type(val)
     attrstring = make_attrstring(attr)
@@ -241,7 +231,6 @@ def dicttoxml(obj, root=True, custom_root='root', ids=False, attr_type=True):
     attr_type is used to specify if data type for each element should be included in the resulting xml.
     By default, it is set to True.
     """
-    logging.info('Inside dicttoxml(): type(obj) is: "%s", obj="%s"' % (type(obj).__name__, obj))
     output = []
     addline = output.append
     if root == True:
